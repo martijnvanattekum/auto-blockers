@@ -1,8 +1,27 @@
+/*
+Automatically creates and deletes 15min appointments around changed Google Calendar events to allow for leeway.
+
+Follows the step as outlined by google here: https://developers.google.com/apps-script/guides/triggers/events#google_calendar_events
+
+The trigger script searches for changed Calendar appointments and determines which were added and removed.
+Next, blockers are added before and after the added events and removed from the removed events 
+(unless the blocker is adjacent to another appointment, in which case it is kept).
+
+A syncToken is kept in a separate sheet to keep track of the Calendar state and allow for incremental updates.
+See also https://developers.google.com/calendar/api/guides/sync#incremental_sync
+
+To set up: 
+ - Activate the Calendar Service under the Services menu
+ - Create an empty Google sheet and note the hash ID (from the hyperlink) in this script as VARIABLES_SHEET_ID
+ - Run resetToken() to write the intial syncToken to above mentioned sheet.
+ - Create a "Calendar Upated" trigger for whenUpdated() from the Triggers menu
+*/
+
 // CONSTANTS //
 const VARIABLES_SHEET_ID = "" // ID for any existing sheet to keep the syncToken in
 const CALENDAR_ID = 'primary'
-const BLOCKER_TITLE = 'Flexible autoblocker'
-const BLOCKER_TIME = 15
+const BLOCKER_TITLE = 'Flexible autoblocker' // Calender title for the blockers
+const BLOCKER_TIME = 15 // time for the blockers in minutes
 
 
 // TRIGGER FUNCTION -- create a "Calendar Upated" trigger for this function //
