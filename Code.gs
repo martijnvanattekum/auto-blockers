@@ -1,17 +1,18 @@
 // CONSTANTS //
-const VARIABLES_SHEET_ID = key // insert id of empty sheet here
+const VARIABLES_SHEET_ID = "" // ID for any existing sheet to keep the syncToken in
 const CALENDAR_ID = 'primary'
 const BLOCKER_TITLE = 'Flexible autoblocker'
 const BLOCKER_TIME = 15
 
 
-// TRIGGER FUNCTION //
+// TRIGGER FUNCTION -- create a "Calendar Upated" trigger for this function //
 function whenUpdated(e){
   
   const calendar = CalendarApp.getDefaultCalendar()
   
   const lastSyncToken = readLastSyncToken()
   const new_events = retrieveEvents(calendarId = CALENDAR_ID, syncToken = lastSyncToken)
+  const nextSyncToken = new_events["nextSyncToken"]
    
   const items = new_events["items"].filter(item => item["summary"] !== BLOCKER_TITLE) // remove blockers from items to avoid infinite trigger loop!!
   const added_items = items.filter(item => item["status"] !== "cancelled")
@@ -20,7 +21,7 @@ function whenUpdated(e){
   added_items.forEach(item => addBlockers(calendar, item["id"]))
   removed_items.forEach(item => removeBlockers(calendar, item["id"]))
 
-  writeLastSyncToken(sheet_name = "variables", cell = "B2", value = new_events["nextSyncToken"]) 
+  writeSyncToken(sheet_name = "variables", cell = "B2", value = nextSyncToken) 
   console.log("The following " + items.length + " items have been updated\n" + items)
 
 }
@@ -36,7 +37,6 @@ function retrieveEvents(calendarId = CALENDAR_ID, sync_token = null){
   // When syncToken is provided, only events created after syncToken was generated will be retrieved
   // When events are paginated, only the last page (including the syncToken) is returned
 
-  // move through pages until nextSyncToken can be extracted from last page
   events = Calendar.Events.list(calendarId, {syncToken : sync_token})
   while ("nextPageToken" in events){
     console.log("Browsing Pages")
@@ -86,17 +86,14 @@ function removeBlockers(calendar, event_id, title = BLOCKER_TITLE, duration = BL
   blocker_times = calculateBlockerTimes(calendar, event_id)
 
   // remove blockers if found and no other event is adjacent
-  const pre_blocker_start_minus_duration = subtractMinutes(blocker_times.pre.start, duration)
-  const post_blocker_end_plus_duration = addMinutes(blocker_times.post.end, duration)
-
   pre_blockers = calendar.getEvents(blocker_times.pre.start, blocker_times.pre.end)
     .filter(event => event.getTitle() === title)
-  if (!anyEventsDuring(calendar, pre_blocker_start_minus_duration, blocker_times.pre.start)){
+  if (!anyEventsDuring(calendar, subtractMinutes(blocker_times.pre.start, duration), blocker_times.pre.start)){
     pre_blockers.forEach(event => event.deleteEvent())}
 
   post_blockers = calendar.getEvents(blocker_times.post.start, blocker_times.post.end)
     .filter(event => event.getTitle() === title)
-  if (!anyEventsDuring(calendar, blocker_times.post.end, post_blocker_end_plus_duration)){
+  if (!anyEventsDuring(calendar, blocker_times.post.end, addMinutes(blocker_times.post.end, duration))){
     post_blockers.forEach(event => event.deleteEvent())}
 
 }
@@ -113,10 +110,10 @@ function retrieveIntialSyncToken(){
 }
 
 function resetToken(){
-  // writes the token based on the current date and time
+  // writes the token based on the current date and time -- Run before using the script for the first time
 
   token = retrieveIntialSyncToken();
-  writeLastSyncToken(sheet_name = "variables", cell = "B2", value = token);
+  writeSyncToken(sheet_name = "variables", cell = "B2", value = token);
 
 }
 
@@ -129,7 +126,7 @@ function readLastSyncToken(sheet_name = "variables", cell = "B2"){
 
 }
 
-function writeLastSyncToken(sheet_name = "variables", cell = "B2", value){
+function writeSyncToken(sheet_name = "variables", cell = "B2", value){
 
   const ss = SpreadsheetApp.openById(VARIABLES_SHEET_ID)
   const variables_sheet = ss.getSheetByName(sheet_name);
